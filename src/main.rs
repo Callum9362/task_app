@@ -3,6 +3,7 @@ use crate::{db::connect, routes::create_routes};
 mod models;
 mod db;
 mod routes;
+mod todo_controller;
 
 #[tokio::main]
 async fn main() {
