@@ -44,3 +44,84 @@ pub async fn get_all(State(pool): State<SqlitePool>) -> Json<Vec<Todo>> {
 
     Json(todos)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use axum::extract::State;
+    use sqlx::{SqlitePool, Executor};
+
+    // Tokio is required for running async tests
+    #[tokio::test]
+    async fn test_get_all() {
+        // Arrange: Set up an in-memory SQLite database
+        let pool = SqlitePool::connect(":memory:").await.unwrap();
+
+        // Create the `todos` table
+        pool.execute(
+            r#"
+            CREATE TABLE todos (
+                id TEXT PRIMARY KEY,
+                title TEXT NOT NULL,
+                completed BOOLEAN NOT NULL
+            );
+            "#
+        )
+            .await
+            .unwrap();
+
+        // Insert example data
+        pool.execute(
+            r#"
+            INSERT INTO todos (id, title, completed)
+            VALUES
+            ("1", "Test Todo 1", false),
+            ("2", "Test Todo 2", true);
+            "#
+        )
+            .await
+            .unwrap();
+
+        // Act: Call the `get_all` function
+        let response = get_all(State(pool.clone())).await;
+
+        // Assert: Verify the response
+        if let Json(todos) = response {
+            assert_eq!(todos.len(), 2); // Confirm the number of todos
+            assert_eq!(todos[0].id.as_deref(), Some("1")); // Confirm ID of the first todo
+            assert_eq!(todos[0].title.as_deref(), Some("Test Todo 1")); // Confirm title of the first todo
+            assert_eq!(todos[1].completed, Some(true)); // Confirm completion status of the second todo
+        } else {
+            panic!("Response was not Json<Vec<Todo>>");
+        }
+    }
+
+    #[tokio::test]
+    async fn test_create() {
+        // Arrange
+        let pool = SqlitePool::connect(":memory:").await.unwrap();
+
+        pool.execute(
+            r#"
+        CREATE TABLE todos (
+            id TEXT PRIMARY KEY,
+            title TEXT NOT NULL,
+            completed BOOLEAN NOT NULL
+        );
+        "#
+        )
+            .await
+            .unwrap();
+
+        let new_todo = CreateTodo {
+            title: "Learn Rust".to_string(),
+            completed: false,
+        };
+
+        // Act
+        let todo: Json<Todo> = create(State(pool.clone()), Json(new_todo)).await;
+
+        // Assert
+        assert_eq!(todo.0.title.as_deref(), Some("Learn Rust"));
+    }
+}

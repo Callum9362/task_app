@@ -15,6 +15,11 @@ cargo build
 cargo test
 cargo run
 
+Tests
+Debugging tests variables
+//println!("todo: {:?}", todo);
+//panic!("Stopping test after debugging");
+
 Example payload sent from terminal
 curl -X POST http://127.0.0.1:3000/todos \
 -H "Content-Type: application/json" \
