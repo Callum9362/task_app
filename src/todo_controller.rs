@@ -11,7 +11,7 @@ pub async fn create(
     State(pool): State<SqlitePool>,
     Json(payload): Json<CreateTodo>,
 ) -> Json<Todo> {
-    let id = Uuid::new_v4().to_string().to_owned();
+    let id = Some(Uuid::new_v4().to_string().to_owned());
     sqlx::query!(
         "INSERT INTO todos(id, title, completed) VALUES (?, ?, ?)",
         id ,
@@ -24,8 +24,23 @@ pub async fn create(
 
     let todo = Todo {
         id,
-        title: payload.title,
-        completed: payload.completed,
+        title: Some(payload.title),
+        completed: Some(payload.completed),
     };
     Json(todo)
+}
+
+pub async fn get_all(State(pool): State<SqlitePool>) -> Json<Vec<Todo>> {
+    let todos = sqlx::query_as!(
+        Todo,
+        r#"
+        SELECT id, title, completed
+        FROM todos
+        "#
+    )
+    .fetch_all(&pool)
+    .await
+    .expect("Failed fetching todos from the database");
+
+    Json(todos)
 }
