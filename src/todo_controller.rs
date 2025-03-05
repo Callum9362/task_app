@@ -105,17 +105,13 @@ mod tests {
             .unwrap();
 
         // Act: Call the `get_all` function
-        let response = get_all(State(pool.clone())).await;
+        let response = get_all(State(pool.clone()))
+            .await;
 
-        // Assert: Verify the response
-        if let Json(todos) = response {
-            assert_eq!(todos.len(), 2); // Confirm the number of todos
-            assert_eq!(todos[0].id.as_deref(), Some("1")); // Confirm ID of the first todo
-            assert_eq!(todos[0].title.as_deref(), Some("Test Todo 1")); // Confirm title of the first todo
-            assert_eq!(todos[1].completed, Some(true)); // Confirm completion status of the second todo
-        } else {
-            panic!("Response was not Json<Vec<Todo>>");
-        }
+        assert_eq!(response.0.len(), 2);
+        assert_eq!(response.0[0].id.as_deref(), Some("1"));
+        assert_eq!(response.0[0].title.as_deref(), Some("Test Todo 1"));
+        assert_eq!(response.0[1].completed, Some(true));
     }
 
     #[tokio::test]
