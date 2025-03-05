@@ -2,6 +2,8 @@ use axum::{
     extract::State,
     response::Json,
 };
+use axum::extract::Path;
+use axum::http::StatusCode;
 use sqlx::SqlitePool;
 use uuid::Uuid;
 
@@ -43,6 +45,26 @@ pub async fn get_all(State(pool): State<SqlitePool>) -> Json<Vec<Todo>> {
     .expect("Failed fetching todos from the database");
 
     Json(todos)
+}
+
+pub async fn get_by_id(
+    Path(id): Path<String>,
+    State(pool): axum::extract::State<SqlitePool>,
+) -> Result<Json<Todo>, StatusCode> {
+
+    let result = sqlx::query_as!(
+        Todo,
+        "SELECT id, title, completed FROM todos WHERE id = ?",
+        id
+    )
+    .fetch_one(&pool)
+    .await;
+
+    match result {
+        Ok(todo) => Ok(Json(todo)),
+        Err(sqlx::Error::RowNotFound) => Err(StatusCode::NOT_FOUND),
+        Err(_) => Err(StatusCode::INTERNAL_SERVER_ERROR),
+    }
 }
 
 #[cfg(test)]
@@ -97,6 +119,45 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_get_by_id() {
+        // Arrange: Set up an in-memory SQLite database
+        let pool = SqlitePool::connect(":memory:").await.unwrap();
+
+        // Create the `todos` table
+        pool.execute(
+            r#"
+            CREATE TABLE todos (
+                id TEXT PRIMARY KEY,
+                title TEXT NOT NULL,
+                completed BOOLEAN NOT NULL
+            );
+            "#
+        )
+            .await
+            .unwrap();
+
+        // Insert example data
+        pool.execute(
+            r#"
+            INSERT INTO todos (id, title, completed)
+            VALUES
+            ("1", "Test Todo 1", false),
+            ("2", "Test Todo 2", true);
+            "#
+        )
+            .await
+            .unwrap();
+
+        // Act: Call the `get_all` function
+        let id = "1".to_string();
+        let response = get_by_id(Path(id), State(pool.clone()))
+            .await
+            .unwrap();
+
+        assert_eq!(response.title.as_deref(), Some("Test Todo 1"));
+    }
+
+    #[tokio::test]
     async fn test_create() {
         // Arrange
         let pool = SqlitePool::connect(":memory:").await.unwrap();
@@ -124,4 +185,6 @@ mod tests {
         // Assert
         assert_eq!(todo.0.title.as_deref(), Some("Learn Rust"));
     }
+
+
 }
