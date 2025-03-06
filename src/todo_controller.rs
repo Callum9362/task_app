@@ -7,7 +7,7 @@ use axum::http::StatusCode;
 use sqlx::SqlitePool;
 use uuid::Uuid;
 
-use crate::models::{Todo, CreateTodo};
+use crate::models::{Todo, CreateTodo, UpdateTodo};
 
 pub async fn create(
     State(pool): State<SqlitePool>,
@@ -30,6 +30,32 @@ pub async fn create(
         completed: Some(payload.completed),
     };
     Json(todo)
+}
+
+pub async fn update(
+    Path(id): Path<String>,
+    State(pool): State<SqlitePool>,
+    Json(payload): Json<UpdateTodo>,
+) -> Result<Json<String>, axum::http::StatusCode> {
+    let result = sqlx::query!(
+            r#"
+                UPDATE todos
+                SET
+                    title = COALESCE($1, title),
+                    completed = COALESCE($2, completed)
+                WHERE id = $3
+            "#,
+            payload.title,
+            payload.completed,
+            id
+        )
+        .execute(&pool)
+        .await;
+
+    match result {
+        Ok(_) => Ok(Json("Todo updated successfully".to_string())),
+        Err(_) => Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR),
+    }
 }
 
 pub async fn get_all(State(pool): State<SqlitePool>) -> Json<Vec<Todo>> {
@@ -180,6 +206,61 @@ mod tests {
 
         // Assert
         assert_eq!(todo.0.title.as_deref(), Some("Learn Rust"));
+    }
+
+    #[tokio::test]
+    async fn test_update() {
+        // Arrange: Set up an in-memory SQLite database
+        let pool = SqlitePool::connect(":memory:").await.unwrap();
+
+        // Create the `todos` table
+        pool.execute(
+            r#"
+            CREATE TABLE todos (
+                id TEXT PRIMARY KEY,
+                title TEXT NOT NULL,
+                completed BOOLEAN NOT NULL
+            );
+            "#
+        )
+            .await
+            .unwrap();
+
+        // Insert example data
+        pool.execute(
+            r#"
+            INSERT INTO todos (id, title, completed)
+            VALUES
+            ("1", "Test Todo 1", false),
+            ("2", "Test Todo 2", true);
+            "#
+        )
+            .await
+            .unwrap();
+
+        let payload = Json(UpdateTodo {
+            title: None,
+            completed: Some(true),
+        });
+
+        // Act: Call the `update` function
+        let id = "1".to_string();
+        let response = update(Path(id), State(pool.clone()), payload)
+            .await
+            .unwrap();
+
+        assert_eq!(response.0, "Todo updated successfully");
+
+        let key = "1".to_string();
+        let updated_todo = sqlx::query!(
+            "SELECT id, title, completed FROM todos WHERE id = ?",
+            key
+        )
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+
+        assert_eq!(updated_todo.completed, true);
     }
 
 

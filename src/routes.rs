@@ -4,7 +4,7 @@ use axum::{
 };
 
 use sqlx::SqlitePool;
-use crate::todo_controller::{create, get_all, get_by_id};
+use crate::todo_controller::{create, get_all, get_by_id, update};
 
 pub fn create_routes(pool: SqlitePool) -> Router {
     Router::new()
@@ -14,7 +14,7 @@ pub fn create_routes(pool: SqlitePool) -> Router {
         )
         .route(
             "/todos/:id",
-            get(get_by_id),
+            get(get_by_id).put(update),
         )
         .with_state(pool)
 }
